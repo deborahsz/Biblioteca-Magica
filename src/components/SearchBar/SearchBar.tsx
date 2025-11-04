@@ -1,34 +1,49 @@
+// src/components/SearchBar/SearchBar.tsx
 import { useState } from 'react';
 
-type Props = {
-  onSearch: (q: string) => void;
+interface Props {
+  onSearch: (query: string) => void;
   defaultValue?: string;
-};
+  onClear?: () => void; // Adicione esta prop opcional
+}
 
-export default function SearchBar({ onSearch, defaultValue = '' }: Props) {
-  const [value, setValue] = useState<string>(defaultValue);
+export default function SearchBar({ onSearch, defaultValue = '', onClear }: Props) {
+  const [query, setQuery] = useState(defaultValue);
 
-  const submit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSearch(value.trim());
+    onSearch(query);
+  };
+
+  const handleClear = () => {
+    setQuery('');
+    onClear?.(); // Chama onClear se existir
   };
 
   return (
-    <form onSubmit={submit} className="flex gap-2">
+    <form onSubmit={handleSubmit} className="flex gap-2">
       <input
         type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Pesquisar livros..."
-        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        aria-label="Pesquisar livros"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar livros..."
+        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <button
         type="submit"
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         Buscar
       </button>
+      {query && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        >
+          Limpar
+        </button>
+      )}
     </form>
   );
 }

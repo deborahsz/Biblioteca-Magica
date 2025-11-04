@@ -1,5 +1,7 @@
 import type { Volume } from '../../types/googleBooks';
 import { useState, useMemo } from 'react';
+import { Card, CardContent, CardMedia, Typography, Button, Box, Chip } from '@mui/material';
+import { ExpandMore, ExpandLess, Launch } from '@mui/icons-material';
 
 type Props = {
   volume: Volume;
@@ -36,45 +38,79 @@ export default function BookCard({ volume }: Props) {
     : 'Autor desconhecido';
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <Card 
+      sx={{ 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        transition: 'all 0.3s ease',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: 6
+        }
+      }}
+    >
       {cover && (
-        <img
-          src={cover}
+        <CardMedia
+          component="img"
+          height="240"
+          image={cover}
           alt={`Capa de ${volume.volumeInfo.title}`}
-          className="h-56 w-full object-cover"
-          loading="lazy"
+          sx={{ objectFit: 'cover' }}
         />
       )}
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <h3 className="text-lg font-semibold">{volume.volumeInfo.title}</h3>
-        <p className="text-sm text-gray-600">{authors}</p>
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Typography variant="h6" component="h3" fontWeight="bold" lineHeight={1.2}>
+          {volume.volumeInfo.title}
+        </Typography>
 
-        <p className="text-sm text-gray-800">
+        <Chip 
+          label={authors} 
+          size="small" 
+          variant="outlined"
+          sx={{ alignSelf: 'flex-start' }}
+        />
+
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ 
+            flexGrow: 1,
+            display: '-webkit-box',
+            WebkitLineClamp: expanded ? 'unset' : 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}
+        >
           {expanded ? cleanDesc : shortDesc}
-        </p>
+        </Typography>
 
-        <div className="mt-auto flex items-center gap-2">
-          <button
-            type="button"
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 'auto' }}>
+          <Button
+            size="small"
             onClick={() => setExpanded((e) => !e)}
-            aria-expanded={expanded}
-            className="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-200"
+            startIcon={expanded ? <ExpandLess /> : <ExpandMore />}
+            variant="outlined"
           >
-            {expanded ? 'mostrar menos' : 'ver mais'}
-          </button>
+            {expanded ? 'Menos' : 'Mais'}
+          </Button>
+          
           {volume.volumeInfo.infoLink && (
-            <a
+            <Button
+              size="small"
               href={volume.volumeInfo.infoLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline"
+              startIcon={<Launch />}
+              variant="contained"
+              sx={{ ml: 'auto' }}
             >
-              detalhes
-            </a>
+              Detalhes
+            </Button>
           )}
-        </div>
-      </div>
-    </article>
+        </Box>
+      </CardContent>
+    </Card>
   );
 }
