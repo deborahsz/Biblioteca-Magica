@@ -16,14 +16,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showPopular, setShowPopular] = useState<boolean>(true);
   
-  // Estados para controlar o scroll infinito
-  const [page, setPage] = useState<number>(0); // Página atual (0 = primeira página)
-  const [hasMore, setHasMore] = useState<boolean>(true); // Se tem mais resultados para carregar
-  const [loadingMore, setLoadingMore] = useState<boolean>(false); // Se está carregando mais itens
+  // dados para o scroll infinito
+  const [page, setPage] = useState<number>(0); 
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
   
-  const RESULTS_PER_PAGE = 20; // Quantos livros carregar por vez
+  const RESULTS_PER_PAGE = 20;
 
-  // Autocomplete suggestions
+  // Sujestoes da busca
   const {
     suggestions: suggestionObjs,
     loading: loadingSuggestions,
@@ -40,7 +40,7 @@ export default function Home() {
         setBooks(data);
         setShowPopular(true);
         setPage(0);
-        setHasMore(true); // Assume que tem mais resultados para popular
+        setHasMore(true);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erro ao buscar livros populares';
         setError(msg);
@@ -66,7 +66,7 @@ export default function Home() {
             if (!active) return;
             setBooks(data);
             setShowPopular(true);
-            setPage(0); // Reseta para primeira página
+            setPage(0);
             setHasMore(true);
           } catch (e) {
             if (!active) return;
@@ -82,10 +82,10 @@ export default function Home() {
       // Nova busca - reseta para a primeira página
       setLoading(true);
       setError(null);
-      setPage(0); // Reseta página
-      setHasMore(true); // Assume que tem mais resultados
+      setPage(0);
+      setHasMore(true);
       try {
-        const data = await fetchBooks(debounced, RESULTS_PER_PAGE, 0); // startIndex = 0
+        const data = await fetchBooks(debounced, RESULTS_PER_PAGE, 0);
         if (!active) return;
         setBooks(data);
         setShowPopular(false);
@@ -136,8 +136,8 @@ export default function Home() {
       
       setPage(nextPage);
 
-      // Se retornou menos livros que o esperado, não tem mais resultados
-      if (newBooks.length < RESULTS_PER_PAGE) {
+      // Se retornou menos de 1 livro, não tem mais resultados
+      if (RESULTS_PER_PAGE < 1) {
         setHasMore(false);
       }
     } catch (e) {
