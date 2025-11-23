@@ -19,6 +19,44 @@ interface LocationState {
   volume: Volume;
 }
 
+function getBestCoverUrl(imageLinks: Volume['volumeInfo']['imageLinks']): string | undefined {
+  // Prioridade: extraLarge -> large -> medium -> thumbnail -> small -> smallThumbnail
+  return (
+    imageLinks?.extraLarge ||
+    imageLinks?.large ||
+    imageLinks?.medium ||
+    imageLinks?.thumbnail ||
+    imageLinks?.small ||
+    imageLinks?.smallThumbnail
+  );
+}
+
+function optimizeImageUrl(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // Converter para HTTPS
+    let optimizedUrl = url.replace('http://', 'https://');
+    
+    // Otimizar URLs do Google Books
+    if (optimizedUrl.includes('google.com/books/content')) {
+      const urlObj = new URL(optimizedUrl);
+      
+      // Parâmetros para imagem de melhor qualidade em tamanho maior
+      urlObj.searchParams.set('fife', 'w400-h600'); // Tamanho maior para detalhes
+      urlObj.searchParams.set('printsec', 'frontcover');
+      urlObj.searchParams.set('img', '1');
+      urlObj.searchParams.set('zoom', '0'); // Zoom mínimo para máxima qualidade
+      
+      optimizedUrl = urlObj.toString();
+    }
+    
+    return optimizedUrl;
+  } catch (error) {
+    return url;
+  }
+}
+
 export default function Details() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,10 +84,8 @@ export default function Details() {
 
   const { volumeInfo } = volume;
   
-  const coverUrl = volumeInfo.imageLinks?.extraLarge || 
-                   volumeInfo.imageLinks?.large || 
-                   volumeInfo.imageLinks?.medium || 
-                   volumeInfo.imageLinks?.thumbnail;
+  const rawCoverUrl = getBestCoverUrl(volumeInfo.imageLinks);
+  const coverUrl = rawCoverUrl ? optimizeImageUrl(rawCoverUrl) : undefined;
 
   const publishedYear = volumeInfo.publishedDate 
     ? new Date(volumeInfo.publishedDate).getFullYear()
@@ -69,14 +105,84 @@ export default function Details() {
   const hasDescription = volumeInfo.description && volumeInfo.description.trim().length > 0;
 
   const [coverLoading, setCoverLoading] = React.useState(true);
+  const [coverError, setCoverError] = React.useState(false);
 
   React.useEffect(() => {
-    if(coverUrl) {
-      const cvr = new Image();
-      cvr.onload = () => setCoverLoading(false);
-      cvr.src = coverUrl.replace('http://', 'https://');
+    if (coverUrl) {
+      setCoverLoading(true);
+      setCoverError(false);
+      
+      const img = new Image();
+      img.onload = () => setCoverLoading(false);
+      img.onerror = () => {
+        setCoverLoading(false);
+        setCoverError(true);
+      };
+      img.src = coverUrl;
+    } else {
+      setCoverLoading(false);
+      setCoverError(true);
     }
   }, [coverUrl]);
+
+  const renderCover = () => {
+    if (coverLoading) {
+      return (
+        <Skeleton
+          variant="rectangular"
+          width="100%"
+          height={400}
+          sx={{
+            borderRadius: 2,
+            bgcolor: 'grey.100'
+          }}
+        />
+      );
+    }
+
+    if (coverError || !coverUrl) {
+      return (
+        <Box
+          sx={{
+            width: '100%',
+            height: 400,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'grey.100',
+            borderRadius: 2,
+            border: '2px dashed',
+            borderColor: 'grey.300',
+            color: 'grey.500'
+          }}
+        >
+          <Typography variant="body1" align="center">
+            📚<br />
+            Imagem não<br />
+            disponível
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Box
+        component="img"
+        src={coverUrl}
+        alt={`Capa de ${volumeInfo.title}`}
+        sx={{
+          width: '100%',
+          maxWidth: 350,
+          height: 400,
+          objectFit: 'cover',
+          borderRadius: 2,
+          boxShadow: 4,
+          display: 'block'
+        }}
+        onError={() => setCoverError(true)}
+      />
+    );
+  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -92,70 +198,54 @@ export default function Details() {
       <Paper elevation={2} sx={{ p: 4, borderRadius: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 4 }}>
           {/* Coluna da imagem */}
-          <Box sx={{ width: { xs: '100%', md: '40%' }, display: 'flex', justifyContent: 'center' }}>
-            {coverLoading ? (
-              <Skeleton
-                variant="rectangular"
-                width="100%"
-                height={400}
-                sx={{
-                  borderRadius: 2,
-                  boxShadow: 4,
-                  display: 'block',
-                  bgcolor: 'grey.100'
-                }}
-              />
-            ) :
-              coverUrl ? (
-                <Box
-                  component="img"
-                  src={coverUrl.replace('http://', 'https://')}
-                  alt={`Capa de ${volumeInfo.title}`}
-                  sx={{
-                    width: '100%',
-                    maxWidth: 350,
-                    borderRadius: 2,
-                    boxShadow: 4,
-                    display: 'block'
-                  }}
-                />
-              ) : (
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: 400,
-                    bgcolor: 'grey.100',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 2,
-                    border: '2px dashed',
-                    borderColor: 'grey.300'
-                  }}
-                >
-                  <Typography color="grey.500" textAlign="center">
-                    📚<br />
-                    Imagem não disponível
-                  </Typography>
-                </Box>
-              )
-            }
+          <Box sx={{ 
+            width: { xs: '100%', md: '40%' }, 
+            display: 'flex', 
+            justifyContent: 'center',
+            alignItems: 'flex-start'
+          }}>
+            <Box sx={{ width: '100%', maxWidth: 350 }}>
+              {renderCover()}
+            </Box>
           </Box>
 
           {/* Coluna das informações */}
           <Box sx={{ width: { xs: '100%', md: '60%' } }}>
             <Box sx={{ mb: 3 }}>
-              <Typography variant="h3" component="h1" gutterBottom fontWeight="bold" color="primary">
+              <Typography 
+                variant="h3" 
+                component="h1" 
+                gutterBottom 
+                fontWeight="bold" 
+                color="primary"
+                sx={{
+                  fontSize: { xs: '2rem', md: '2.5rem' },
+                  lineHeight: 1.2
+                }}
+              >
                 {volumeInfo.title}
               </Typography>
 
               {volumeInfo.subtitle && (
-                <Typography variant="h5" color="text.secondary" gutterBottom sx={{ fontStyle: 'italic' }}>
+                <Typography 
+                  variant="h5" 
+                  color="text.secondary" 
+                  gutterBottom 
+                  sx={{ 
+                    fontStyle: 'italic',
+                    fontSize: { xs: '1.25rem', md: '1.5rem' }
+                  }}
+                >
                   {volumeInfo.subtitle}
                 </Typography>
               )}
 
-              <Typography variant="h6" color="text.primary" gutterBottom sx={{ mt: 2 }}>
+              <Typography 
+                variant="h6" 
+                color="text.primary" 
+                gutterBottom 
+                sx={{ mt: 2 }}
+              >
                 por <Box component="span" color="primary.main" fontWeight="medium">
                   {volumeInfo.authors?.join(', ') || 'Autor desconhecido'}
                 </Box>
@@ -281,7 +371,6 @@ export default function Details() {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              
               {volumeInfo.infoLink && (
                 <Button
                   variant="outlined"

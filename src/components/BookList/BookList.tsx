@@ -1,6 +1,12 @@
 // src/components/BookList/BookList.tsx
 import type { Volume } from '../../api/types/googleBooks';
 import BookCard from '../BookCard/BookCard';
+import {
+  Box,
+  Typography,
+  Alert,
+  CircularProgress
+} from '@mui/material';
 
 interface Props {
   books: Volume[];
@@ -12,38 +18,73 @@ interface Props {
 export default function BookList({ books, loading, error, loadingMore = false }: Props) {
   // Se está carregando a primeira página
   if (loading) {
-    return <div className="text-center py-8">Carregando livros...</div>;
+    return (
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <CircularProgress size={40} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Carregando livros...
+        </Typography>
+      </Box>
+    );
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-600">Erro: {error}</div>;
+    return (
+      <Box sx={{ py: 4 }}>
+        <Alert severity="error" sx={{ maxWidth: 600, mx: 'auto' }}>
+          <Typography variant="h6" gutterBottom>
+            Erro ao carregar livros
+          </Typography>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+        </Alert>
+      </Box>
+    );
   }
 
   if (books.length === 0) {
-    return <div className="text-center py-8 text-gray-600">Nenhum livro encontrado.</div>;
+    return (
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          Nenhum livro encontrado
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Tente ajustar os termos da sua busca.
+        </Typography>
+      </Box>
+    );
   }
 
   return (
-    <div>
-      {/* Grid de livros */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <Box>
+      {/* Grid de livros usando CSS Grid puro */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(3, 1fr)',
+          lg: 'repeat(4, 1fr)'
+        },
+        gap: 3
+      }}>
         {books.map((book) => (
           <BookCard key={book.id} volume={book} />
         ))}
-      </div>
+      </Box>
 
       {/* Indicador de carregamento no scroll infinito */}
       {loadingMore && (
-        <div className="text-center py-8">
-          <div className="inline-flex items-center gap-2 text-gray-600">
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <span>Carregando mais livros...</span>
-          </div>
-        </div>
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}>
+            <CircularProgress size={20} />
+            <Typography variant="body1">
+              Carregando mais livros...
+            </Typography>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
