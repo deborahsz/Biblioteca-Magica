@@ -12,11 +12,12 @@ import useLocalStorageCache from '../hooks/useLocalStorageCache';
 export default function Home() {
   const RESULTS_PER_PAGE = 20;
 
-  // 🔥 Agora mantemos os valores no localStorage
+  // 🔥 Valores armazenados no localStorage
   const [books, setBooks] = useLocalStorageCache<Volume[]>('books-cache', []);
   const [query, setQuery] = useLocalStorageCache<string>('query-cache', '');
   const [page, setPage] = useLocalStorageCache<number>('page-cache', 0);
-  const [showPopular, setShowPopular] = useLocalStorageCache<boolean>('popular-cache', true);
+  const [showPopular, setShowPopular] =
+    useLocalStorageCache<boolean>('popular-cache', true);
 
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -30,7 +31,20 @@ export default function Home() {
     useBookSuggestions(query, 8);
   const suggestions = suggestionObjs.map((s) => s.title);
 
-  // ⚠️ Executa apenas no primeiro load da página
+  // ✅ Função para limpar cache + recarregar a página
+  const resetApp = () => {
+    localStorage.removeItem('books-cache');
+    localStorage.removeItem('query-cache');
+    localStorage.removeItem('page-cache');
+    localStorage.removeItem('popular-cache');
+
+    // Ou para limpar tudo mesmo:
+    // localStorage.clear();
+
+    window.location.reload();
+  };
+
+  // ⚠️ Executa apenas no primeiro load
   useEffect(() => {
     if (books.length > 0) return;
 
@@ -52,14 +66,12 @@ export default function Home() {
     loadPopular();
   }, []);
 
-  // 🔎 Quando fizer busca → resetar e salvar no localStorage
+  // 🔎 Busca
   useEffect(() => {
     let active = true;
 
     const run = async () => {
-      if (!debounced.trim()) {
-        return;
-      }
+      if (!debounced.trim()) return;
 
       setLoading(true);
       setPage(0);
@@ -102,8 +114,8 @@ export default function Home() {
         : await fetchBooks(debounced, RESULTS_PER_PAGE, startIndex);
 
       setBooks((prev) => {
-        const existingIds = new Set(prev.map((b) => b.id));
-        const filtered = newBooks.filter((b) => !existingIds.has(b.id));
+        const ids = new Set(prev.map((b) => b.id));
+        const filtered = newBooks.filter((b) => !ids.has(b.id));
         return [...prev, ...filtered];
       });
 
@@ -123,7 +135,7 @@ export default function Home() {
     hasMore,
   });
 
-  // Reset ao limpar a busca
+  // Reset ao limpar busca
   const handleClearSearch = () => {
     setQuery('');
     setShowPopular(true);
@@ -132,6 +144,14 @@ export default function Home() {
 
   return (
     <section className="mx-auto max-w-7xl">
+      {/* Clique no logo chama resetApp() */}
+      <div
+        className="cursor-pointer mb-4"
+        onClick={resetApp}
+      >
+        <h1 className="text-3xl font-bold">📚 Biblioteca Mágica</h1>
+      </div>
+
       <div className="mb-6">
         <SearchBar
           onSearch={setQuery}

@@ -1,33 +1,45 @@
 // src/components/BookList/BookList.tsx
 import type { Volume } from '../../api/types/googleBooks';
+import BookCardSkeleton from '../BookCard/BookCardSkeleton';
 import BookCard from '../BookCard/BookCard';
 import {
   Box,
   Typography,
-  Alert,
-  CircularProgress
+  Alert
 } from '@mui/material';
 
 interface Props {
   books: Volume[];
   loading: boolean;
   error: string | null;
-  loadingMore?: boolean; // Novo: indica se está carregando mais itens (scroll infinito)
+  loadingMore?: boolean; // Indica carregamento do scroll infinito
 }
 
 export default function BookList({ books, loading, error, loadingMore = false }: Props) {
-  // Se está carregando a primeira página
+  
+  // 🔥 Skeleton do carregamento inicial
   if (loading) {
     return (
-      <Box sx={{ textAlign: 'center', py: 8 }}>
-        <CircularProgress size={40} sx={{ mb: 2 }} />
-        <Typography variant="h6" color="text.secondary">
-          Carregando livros...
-        </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+            lg: 'repeat(4, 1fr)',
+          },
+          gap: 3,
+        }}
+      >
+        {Array.from({ length: 8 }).map((_, i) => (
+          <BookCardSkeleton key={i} />
+        ))}
       </Box>
     );
   }
 
+  // 🔥 Exibe erro
   if (error) {
     return (
       <Box sx={{ py: 4 }}>
@@ -35,14 +47,13 @@ export default function BookList({ books, loading, error, loadingMore = false }:
           <Typography variant="h6" gutterBottom>
             Erro ao carregar livros
           </Typography>
-          <Typography variant="body2">
-            {error}
-          </Typography>
+          <Typography variant="body2">{error}</Typography>
         </Alert>
       </Box>
     );
   }
 
+  // 🔥 Nenhum resultado
   if (books.length === 0) {
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
@@ -58,31 +69,42 @@ export default function BookList({ books, loading, error, loadingMore = false }:
 
   return (
     <Box>
-      {/* Grid de livros usando CSS Grid puro */}
-      <Box sx={{
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: '1fr',
-          sm: 'repeat(2, 1fr)',
-          md: 'repeat(3, 1fr)',
-          lg: 'repeat(4, 1fr)'
-        },
-        gap: 3
-      }}>
+      {/* Grid de livros */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+            lg: 'repeat(4, 1fr)'
+          },
+          gap: 3
+        }}
+      >
         {books.map((book) => (
           <BookCard key={book.id} volume={book} />
         ))}
       </Box>
 
-      {/* Indicador de carregamento no scroll infinito */}
+      {/* 🔥 Infinite Scroll Skeleton Loader */}
       {loadingMore && (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}>
-            <CircularProgress size={20} />
-            <Typography variant="body1">
-              Carregando mais livros...
-            </Typography>
-          </Box>
+        <Box
+          sx={{
+            mt: 3,
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            },
+            gap: 3,
+          }}
+        >
+          {Array.from({ length: 4 }).map((_, i) => (
+            <BookCardSkeleton key={`loadmore-${i}`} />
+          ))}
         </Box>
       )}
     </Box>
