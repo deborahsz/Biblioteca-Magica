@@ -1,5 +1,83 @@
-import type { Volume } from './types/googleBooks';
+import type { Volume, ImageLinks } from './types/googleBooks';
 
+// Função simplificada para verificar se temos imagens básicas
+function hasBasicImages(imageLinks: ImageLinks): boolean {
+  if (!imageLinks) return false;
+  
+  // Verificar se temos pelo menos uma imagem básica
+  const hasThumbnail = !!imageLinks.thumbnail;
+  const hasSmallThumbnail = !!imageLinks.smallThumbnail;
+  const hasSmall = !!imageLinks.small;
+  const hasMedium = !!imageLinks.medium;
+  
+  return hasThumbnail || hasSmallThumbnail || hasSmall || hasMedium;
+}
+
+// Função para otimizar URLs de imagens (sem verificação CORS)
+function optimizeImageUrl(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // Para URLs do Google Books, apenas garantir que usamos HTTPS
+    let optimizedUrl = url.replace('http://', 'https://');
+    
+    // Adicionar parâmetros básicos para melhor qualidade
+    if (optimizedUrl.includes('google.com/books/content')) {
+      const urlObj = new URL(optimizedUrl);
+      
+      // Parâmetros para melhor qualidade
+      urlObj.searchParams.set('fife', 'w400-h600');
+      urlObj.searchParams.set('printsec', 'frontcover');
+      urlObj.searchParams.set('img', '1');
+      
+      // Configurar zoom baseado no tipo de imagem
+      if (url.includes('thumbnail') || url.includes('small')) {
+        urlObj.searchParams.set('zoom', '1');
+      } else {
+        urlObj.searchParams.set('zoom', '0');
+      }
+      
+      optimizedUrl = urlObj.toString();
+    }
+    
+    return optimizedUrl;
+  } catch (error) {
+    return url; // Retornar original se houver erro
+  }
+}
+
+// Função para obter imagens otimizadas
+function getOptimizedImageLinks(imageLinks: ImageLinks): ImageLinks {
+  if (!imageLinks) {
+    return {};
+  }
+
+  const optimized: ImageLinks = {};
+
+  // Otimizar cada tipo de imagem disponível
+  if (imageLinks.smallThumbnail) {
+    optimized.smallThumbnail = optimizeImageUrl(imageLinks.smallThumbnail);
+  }
+  if (imageLinks.thumbnail) {
+    optimized.thumbnail = optimizeImageUrl(imageLinks.thumbnail);
+  }
+  if (imageLinks.small) {
+    optimized.small = optimizeImageUrl(imageLinks.small);
+  }
+  if (imageLinks.medium) {
+    optimized.medium = optimizeImageUrl(imageLinks.medium);
+  }
+  if (imageLinks.large) {
+    optimized.large = optimizeImageUrl(imageLinks.large);
+  }
+  if (imageLinks.extraLarge) {
+    optimized.extraLarge = optimizeImageUrl(imageLinks.extraLarge);
+  }
+
+  return optimized;
+}
+
+// Função principal atualizada - SEM verificações CORS
 export async function fetchBooks(query: string, maxResults = 20, startIndex = 0): Promise<Volume[]> {
   const q = query?.trim();
   if (!q) return [];
@@ -25,10 +103,7 @@ export async function fetchBooks(query: string, maxResults = 20, startIndex = 0)
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
 
-    const hasImage = (imageLinks: any): boolean => !!(
-      imageLinks?.thumbnail || imageLinks?.smallThumbnail || imageLinks?.small || imageLinks?.medium
-    );
-
+    // Filtro simplificado - apenas verificar se temos imagens básicas
     const filtered = items.filter((it) => {
       const vi = it?.volumeInfo;
       const id = it?.id;
@@ -37,19 +112,25 @@ export async function fetchBooks(query: string, maxResults = 20, startIndex = 0)
       const description = typeof vi.description === 'string' ? vi.description.trim() : '';
       if (!description) return false;
 
-      if (!hasImage(vi.imageLinks)) return false;
-
       if (vi.maturityRating === 'MATURE') return false;
 
       const descNorm = normalize(description);
       const banned = bannedWords.some((w) => descNorm.includes(normalize(w)));
       if (banned) return false;
 
+      // Verificação SIMPLES de imagens - sem CORS
+      if (!hasBasicImages(vi.imageLinks)) return false;
+
       return true;
     });
 
+    console.log('Itens após filtro:', filtered.length);
+
+    // Mapear os livros com imagens otimizadas
     const mapped: Volume[] = filtered.map((it) => {
       const vi = it.volumeInfo;
+      const optimizedImageLinks = getOptimizedImageLinks(vi.imageLinks || {});
+
       return {
         id: it.id as string,
         volumeInfo: {
@@ -57,14 +138,7 @@ export async function fetchBooks(query: string, maxResults = 20, startIndex = 0)
           subtitle: typeof vi.subtitle === 'string' ? vi.subtitle : undefined,
           authors: Array.isArray(vi.authors) ? vi.authors : undefined,
           description: vi.description as string,
-          imageLinks: {
-            thumbnail: vi.imageLinks?.thumbnail,
-            smallThumbnail: vi.imageLinks?.smallThumbnail,
-            small: vi.imageLinks?.small,
-            medium: vi.imageLinks?.medium,
-            large: vi.imageLinks?.large,
-            extraLarge: vi.imageLinks?.extraLarge,
-          },
+          imageLinks: optimizedImageLinks,
           maturityRating: typeof vi.maturityRating === 'string' ? vi.maturityRating : undefined,
           infoLink: typeof vi.infoLink === 'string' ? vi.infoLink : undefined,
           previewLink: typeof vi.previewLink === 'string' ? vi.previewLink : undefined,
@@ -80,13 +154,16 @@ export async function fetchBooks(query: string, maxResults = 20, startIndex = 0)
       };
     });
 
+    console.log('Livros mapeados:', mapped.length);
     return mapped;
+
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido ao buscar livros';
     throw new Error(`Erro de rede ao buscar livros: ${message}`);
   }
 }
 
+// fetchPopularBooks atualizada
 export async function fetchPopularBooks(maxResults = 20, startIndex = 0): Promise<Volume[]> {
   const popularQueries = [
     'bestseller',
@@ -122,10 +199,7 @@ export async function fetchPopularBooks(maxResults = 20, startIndex = 0): Promis
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
 
-    const hasImage = (imageLinks: any): boolean => !!(
-      imageLinks?.thumbnail || imageLinks?.smallThumbnail || imageLinks?.small || imageLinks?.medium
-    );
-
+    // Filtro simplificado
     const filtered = items.filter((it) => {
       const vi = it?.volumeInfo;
       const id = it?.id;
@@ -134,19 +208,23 @@ export async function fetchPopularBooks(maxResults = 20, startIndex = 0): Promis
       const description = typeof vi.description === 'string' ? vi.description.trim() : '';
       if (!description) return false;
 
-      if (!hasImage(vi.imageLinks)) return false;
-
       if (vi.maturityRating === 'MATURE') return false;
 
       const descNorm = normalize(description);
       const banned = bannedWords.some((w) => descNorm.includes(normalize(w)));
       if (banned) return false;
 
+      // Verificação SIMPLES de imagens - sem CORS
+      if (!hasBasicImages(vi.imageLinks)) return false;
+
       return true;
     });
 
+    // Mapear os livros
     const mapped: Volume[] = filtered.map((it) => {
       const vi = it.volumeInfo;
+      const optimizedImageLinks = getOptimizedImageLinks(vi.imageLinks || {});
+
       return {
         id: it.id as string,
         volumeInfo: {
@@ -154,14 +232,7 @@ export async function fetchPopularBooks(maxResults = 20, startIndex = 0): Promis
           subtitle: typeof vi.subtitle === 'string' ? vi.subtitle : undefined,
           authors: Array.isArray(vi.authors) ? vi.authors : undefined,
           description: vi.description as string,
-          imageLinks: {
-            thumbnail: vi.imageLinks?.thumbnail,
-            smallThumbnail: vi.imageLinks?.smallThumbnail,
-            small: vi.imageLinks?.small,
-            medium: vi.imageLinks?.medium,
-            large: vi.imageLinks?.large,
-            extraLarge: vi.imageLinks?.extraLarge,
-          },
+          imageLinks: optimizedImageLinks,
           maturityRating: typeof vi.maturityRating === 'string' ? vi.maturityRating : undefined,
           infoLink: typeof vi.infoLink === 'string' ? vi.infoLink : undefined,
           previewLink: typeof vi.previewLink === 'string' ? vi.previewLink : undefined,
@@ -184,6 +255,7 @@ export async function fetchPopularBooks(maxResults = 20, startIndex = 0): Promis
   }
 }
 
+// fetchBookById atualizada
 export async function fetchBookById(bookId: string): Promise<Volume | null> {
   const url = `https://www.googleapis.com/books/v1/volumes/${bookId}`;
 
@@ -205,10 +277,6 @@ export async function fetchBookById(bookId: string): Promise<Volume | null> {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
 
-    const hasImage = (imageLinks: any): boolean => !!(
-      imageLinks?.thumbnail || imageLinks?.smallThumbnail || imageLinks?.small || imageLinks?.medium
-    );
-
     const vi = data.volumeInfo;
     const description = typeof vi.description === 'string' ? vi.description.trim() : '';
     
@@ -218,7 +286,11 @@ export async function fetchBookById(bookId: string): Promise<Volume | null> {
     const banned = bannedWords.some((w) => descNorm.includes(normalize(w)));
     if (banned) return null;
 
-    if (!hasImage(vi.imageLinks)) return null;
+    // Verificação SIMPLES de imagens - sem CORS
+    if (!hasBasicImages(vi.imageLinks)) return null;
+
+    // Otimizar as imagens
+    const optimizedImageLinks = getOptimizedImageLinks(vi.imageLinks || {});
 
     const volume: Volume = {
       id: data.id as string,
@@ -227,14 +299,7 @@ export async function fetchBookById(bookId: string): Promise<Volume | null> {
         subtitle: typeof vi.subtitle === 'string' ? vi.subtitle : undefined,
         authors: Array.isArray(vi.authors) ? vi.authors : undefined,
         description: vi.description as string,
-        imageLinks: {
-          thumbnail: vi.imageLinks?.thumbnail,
-          smallThumbnail: vi.imageLinks?.smallThumbnail,
-          small: vi.imageLinks?.small,
-          medium: vi.imageLinks?.medium,
-          large: vi.imageLinks?.large,
-          extraLarge: vi.imageLinks?.extraLarge,
-        },
+        imageLinks: optimizedImageLinks,
         maturityRating: typeof vi.maturityRating === 'string' ? vi.maturityRating : undefined,
         infoLink: typeof vi.infoLink === 'string' ? vi.infoLink : undefined,
         previewLink: typeof vi.previewLink === 'string' ? vi.previewLink : undefined,
