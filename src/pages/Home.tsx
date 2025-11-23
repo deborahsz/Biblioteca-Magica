@@ -1,4 +1,4 @@
-// src\pages\Home.tsx
+// src/pages/Home.tsx
 import { useEffect, useState } from 'react';
 import SearchBar from '../components/SearchBar/SearchBar';
 import BookList from '../components/BookList/BookList';
@@ -7,168 +7,134 @@ import type { Volume } from '../api/types/googleBooks';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import useBookSuggestions from '../hooks/useBookSuggestions';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import useLocalStorageCache from '../hooks/useLocalStorageCache';
 
 export default function Home() {
-  const [query, setQuery] = useState<string>('');
-  const debounced = useDebouncedValue(query, 600);
-  const [books, setBooks] = useState<Volume[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPopular, setShowPopular] = useState<boolean>(true);
-  
-  // dados para o scroll infinito
-  const [page, setPage] = useState<number>(0); 
-  const [hasMore, setHasMore] = useState<boolean>(true);
-  const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  
   const RESULTS_PER_PAGE = 20;
 
-  // Sujestoes da busca
-  const {
-    suggestions: suggestionObjs,
-    loading: loadingSuggestions,
-  } = useBookSuggestions(query, 8);
+  // 🔥 Agora mantemos os valores no localStorage
+  const [books, setBooks] = useLocalStorageCache<Volume[]>('books-cache', []);
+  const [query, setQuery] = useLocalStorageCache<string>('query-cache', '');
+  const [page, setPage] = useLocalStorageCache<number>('page-cache', 0);
+  const [showPopular, setShowPopular] = useLocalStorageCache<boolean>('popular-cache', true);
+
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const debounced = useDebouncedValue(query, 600);
+
+  // Sugestões
+  const { suggestions: suggestionObjs, loading: loadingSuggestions } =
+    useBookSuggestions(query, 8);
   const suggestions = suggestionObjs.map((s) => s.title);
 
-  // Carrega livros populares ao inicializar
+  // ⚠️ Executa apenas no primeiro load da página
   useEffect(() => {
-    const loadPopularBooks = async () => {
+    if (books.length > 0) return;
+
+    const loadPopular = async () => {
       setLoading(true);
-      setError(null);
       try {
         const data = await fetchPopularBooks(RESULTS_PER_PAGE);
         setBooks(data);
-        setShowPopular(true);
         setPage(0);
+        setShowPopular(true);
         setHasMore(true);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Erro ao buscar livros populares';
-        setError(msg);
+      } catch {
+        setError('Erro ao carregar livros populares');
       } finally {
         setLoading(false);
       }
     };
 
-    loadPopularBooks();
+    loadPopular();
   }, []);
 
-  // Busca quando o usuário digita (RESETA para a primeira página)
+  // 🔎 Quando fizer busca → resetar e salvar no localStorage
   useEffect(() => {
     let active = true;
-    
+
     const run = async () => {
       if (!debounced.trim()) {
-        // Se a busca estiver vazia, mostra os populares novamente
-        if (!showPopular) {
-          setLoading(true);
-          try {
-            const data = await fetchPopularBooks(RESULTS_PER_PAGE);
-            if (!active) return;
-            setBooks(data);
-            setShowPopular(true);
-            setPage(0);
-            setHasMore(true);
-          } catch (e) {
-            if (!active) return;
-            const msg = e instanceof Error ? e.message : 'Erro ao buscar livros populares';
-            setError(msg);
-          } finally {
-            if (active) setLoading(false);
-          }
-        }
         return;
       }
 
-      // Nova busca - reseta para a primeira página
       setLoading(true);
-      setError(null);
       setPage(0);
       setHasMore(true);
+      setShowPopular(false);
+
       try {
         const data = await fetchBooks(debounced, RESULTS_PER_PAGE, 0);
         if (!active) return;
         setBooks(data);
-        setShowPopular(false);
-        // Se retornou menos que o esperado, provavelmente não tem mais
-        if (data.length < RESULTS_PER_PAGE) {
-          setHasMore(false);
-        }
-      } catch (e) {
+
+        if (data.length < RESULTS_PER_PAGE) setHasMore(false);
+      } catch {
         if (!active) return;
-        const msg = e instanceof Error ? e.message : 'Erro ao buscar livros';
-        setError(msg);
+        setError('Erro ao buscar livros');
       } finally {
         if (active) setLoading(false);
       }
     };
 
     run();
-    return () => { active = false; };
-  }, [debounced, showPopular]);
 
-  // Função para carregar mais resultados (scroll infinito)
+    return () => {
+      active = false;
+    };
+  }, [debounced]);
+
+  // Infinite Scroll
   const loadMore = async () => {
-    if (loadingMore || !hasMore || loading) return;
+    if (loadingMore || !hasMore) return;
 
     setLoadingMore(true);
-    setError(null);
-    
+
     const nextPage = page + 1;
     const startIndex = nextPage * RESULTS_PER_PAGE;
 
     try {
-      let newBooks: Volume[];
-      
-      if (showPopular) {
-        // Carregando mais livros populares
-        newBooks = await fetchPopularBooks(RESULTS_PER_PAGE, startIndex);
-      } else {
-        // Carregando mais resultados de busca
-        newBooks = await fetchBooks(debounced, RESULTS_PER_PAGE, startIndex);
-      }
+      const newBooks = showPopular
+        ? await fetchPopularBooks(RESULTS_PER_PAGE, startIndex)
+        : await fetchBooks(debounced, RESULTS_PER_PAGE, startIndex);
 
-      // Adiciona os novos livros aos existentes (sem duplicatas)
-      setBooks(prev => {
-        const existingIds = new Set(prev.map(b => b.id));
-        const filtered = newBooks.filter(b => !existingIds.has(b.id));
+      setBooks((prev) => {
+        const existingIds = new Set(prev.map((b) => b.id));
+        const filtered = newBooks.filter((b) => !existingIds.has(b.id));
         return [...prev, ...filtered];
       });
-      
+
       setPage(nextPage);
 
-      // Se retornou menos de 1 livro, não tem mais resultados
-      if (RESULTS_PER_PAGE < 1) {
-        setHasMore(false);
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao carregar mais livros';
-      setError(msg);
+      if (newBooks.length < 1) setHasMore(false);
+    } catch {
+      setError('Erro ao carregar mais livros');
     } finally {
       setLoadingMore(false);
     }
   };
 
-  // Usa o hook de scroll infinito
   useInfiniteScroll({
     onLoadMore: loadMore,
     isLoading: loadingMore,
-    hasMore: hasMore
+    hasMore,
   });
 
-  const handleSearch = (searchQuery: string) => {
-    setQuery(searchQuery);
-  };
-
+  // Reset ao limpar a busca
   const handleClearSearch = () => {
     setQuery('');
     setShowPopular(true);
+    setPage(0);
   };
 
   return (
     <section className="mx-auto max-w-7xl">
       <div className="mb-6">
         <SearchBar
-          onSearch={handleSearch}
+          onSearch={setQuery}
           defaultValue={query}
           onClear={handleClearSearch}
           onChange={(v) => setQuery(v)}
@@ -178,25 +144,12 @@ export default function Home() {
         />
       </div>
 
-      {showPopular && !loading && (
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">📚 Livros em Alta</h2>
-          <p className="text-gray-600 mt-2">Descubra os livros mais populares no momento</p>
-        </div>
-      )}
-
-      {!showPopular && !loading && books.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
-            🔍 Resultados para: "{query}"
-          </h2>
-          <p className="text-gray-600 mt-2">
-            {books.length} livro{books.length !== 1 ? 's' : ''} encontrado{books.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-      )}
-
-      <BookList books={books} loading={loading} error={error} loadingMore={loadingMore} />
+      <BookList
+        books={books}
+        loading={loading}
+        error={error}
+        loadingMore={loadingMore}
+      />
     </section>
   );
 }
